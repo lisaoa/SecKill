@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en"
+      xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <title>商品详情</title>
+  <!-- jquery -->
+  <script type="text/javascript" th:src="@{/js/jquery.min.js}"></script>
+  <!-- bootstrap -->
+  <link rel="stylesheet" type="text/css"
+        th:href="@{/bootstrap/css/bootstrap.min.css}"/>
+  <script type="text/javascript" th:src="@{/bootstrap/js/bootstrap.min.js}"></script>
+  <!-- layer -->
+  <script type="text/javascript" th:src="@{/layer/layer.js}"></script>
+  <!-- common.js -->
+  <script type="text/javascript" th:src="@{/js/common.js}"></script>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+<div class="panel panel-default">
+  <div class="panel-heading">秒杀商品详情</div>
+  <div class="panel-body">
+    <span th:if="${user eq null}"> 您还没有登录，请登陆后再操作<br/></span>
+    <span>没有收货地址的提示。。。</span>
+  </div>
+  <table class="table" id="goods">
+    <tr>
+      <td>商品名称</td>
+      <td colspan="3" th:text="${goods.goodsName}"></td>
+    </tr>
+    <tr>
+      <td>商品图片</td>
+      <td colspan="3"><img th:src="@{${goods.goodsImg}}" width="200"
+                           height="200"/></td>
+    </tr>
+    <tr>
+      <td>秒杀开始时间</td>
+      <td th:text="${#dates.format(goods.startDate,'yyyy-MM-dd HH:mm:ss')}"></td>
+      <td id="seckillTip">
+        <span th:if="${secKillStatus eq 0}">秒杀倒计时：
+          <span id="countDown" th:text="${remainSeconds}"></span>秒
+        </span>
+        <span th:if="${secKillStatus eq 1}">秒杀进行中</span>
+        <span th:if="${secKillStatus eq 2}">秒杀已结束</span>
+      </td>
+      <td>
+        <input type="hidden" id="remainSeconds" th:value="${remainSeconds}" />
+        <input type="hidden" id="continueSeconds" th:value="${continueSeconds}" />
+        <form id="seckillForm" method="post">
+          <div class="row">
+            <div class="form-inline">
+              <img id="captchaImg" width="130" height="32" style="display: none" onclick="refreshCaptcha()" />
+              <input id="captcha" class="form-control" style="display: none" />
+              <button type="button" class="btn btn-primary btn-block" id="buyButton" onclick="getSeckillPath()">
+                立即秒杀
+              </button>
+              <input type="hidden" id="goodsId" name="goodsId" th:value="${goods.id}" />
+            </div>
+          </div>
+        </form>
+      </td>
+    </tr>
+    <tr>
+      <td>商品原价</td>
+      <td colspan="3" th:text="${goods.goodsPrice}"></td>
+    </tr>
+    <tr>
+      <td>秒杀价</td>
+      <td colspan="3" th:text="${goods.seckillPrice}"></td>
+    </tr>
+    <tr>
+      <td>库存数量</td>
+      <td colspan="3" th:text="${goods.stockCount}"></td>
+    </tr>
+  </table>
+</div>
+</body>
+
+<script>
+  $(function (){
+    countDown();
+  });
+
+  function getSeckillPath(){
+    var goodsId = $("#goodsId").val();
+    var captcha = $("#captcha").val();
+    g_showLoading();
+    $.ajax({
+      url: "/secKill/path",
+      type: "GET",
+      data: {
+        goodsId: goodsId,
+        captcha: captcha,
+      },
+      success: function (data) {
+        if(data.code == 200){
+          var path = data.object;
+          doSeckill(path);
+        }else{
+          layer.msg(data.message);
+        }
+      },
+      error: function () {
+        layer.msg("客户端请求错误");
+      }
+    });
+  }
+
+  function refreshCaptcha(){
+    $("#captchaImg").attr("src","/secKill/captcha?goodsId=" + $("#goodsId").val() + "&time=" + new Date() );
+  }
+
+  function doSeckill(path) {
+    $.ajax({
+      url: "/secKill/" + path + "/doSecKill",
+      type: "POST",
+      data: {
+        goodsId: $("#goodsId").val(),
+      },
+      success: function (data) {
+        if (data.code == 200) {
+        } else {
+          layer.msg(data.message);
+        }
+      },
+      error: function () {
+        layer.msg("客户端请求错误");
+      }
+    })
+  }
+
+  function countDown(){
+    var remainSeconds = $("#remainSeconds").val();
+    var continueSeconds = $("#continueSeconds").val();
+    var timeout;
+    var secKillTimeout;
+    if(remainSeconds > 0){
+      //秒杀未开始
+      timeout = setTimeout(function () {
+        $("#buyButton").attr("disabled",true);
+        $("#countDown").text(remainSeconds - 1);
+        $("#remainSeconds").val(remainSeconds - 1);
+        countDown();
+      },1000);
+    }else if(remainSeconds == 0 && continueSeconds > 0){
+      //秒杀进行中
+      $("#buyButton").attr("disabled",false);
+      if(timeout) clearTimeout(timeout);
+      $("#seckillTip").html("秒杀进行中");
+
+      refreshCaptcha();
+      $("#captchaImg").show();
+      $("#captcha").show();
+
+      // secKillTimeout = setTimeout(function () {
+      //   $("#continueSeconds").val(continueSeconds - 1);
+      //   countDown();
+      // },1000);
+    }else{
+      //if(secKillTimeout) clearTimeout(secKillTimeout);
+      //目前问题：不会从秒杀进行中改变为秒杀已结束
+      $("#buyButton").attr("disabled",true);
+      $("#seckillTip").html("秒杀已结束");
+
+      $("#captchaImg").hide();
+      $("#captcha").hide();
+
+    }
+  }
+</script>
+</html>
